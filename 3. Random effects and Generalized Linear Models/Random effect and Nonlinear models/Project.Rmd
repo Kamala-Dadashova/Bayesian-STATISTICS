@@ -1,0 +1,389 @@
+---
+title: 
+author: "Kamala Dadashova"
+output: pdf_document
+---
+
+```{r, echo=FALSE,include=FALSE}
+library(tibble)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(invgamma)
+library(ggforce)
+library(broom)
+```
+
+**Problem 1 **
+
+We compared Reggie Jackson's home run rate in the regular season and World Series. He hit 563 home runs in 2820 regular-season games and 10 home runs in 27 World Series games (a player can hit 0, 1, 2, ... home runs in a game). Assuming Uniform(0,10) priors for both home run rates, use JAGS to summarize the posterior distribution of (i) his home run rate in the regular season, (ii) his home run rate in the World Series, and (iii) the ratio
+of these rates. Provide trace plots for all three parameters and  discuss convergence of the MCMC sampler including appropriate convergence diagnostics.
+
+\textbf{Solution:}
+
+We have Poisson likelihood and uniform prior: 
+
+```{r}
+library(rjags)
+# Given parameters
+N1 = 2820; Y1 = 563; N2 = 27; Y2 = 10
+# Define string model
+model_string = textConnection("model{
+    # Likelihood
+    Y1 ~ dpois(N1*lambda1)
+    Y2 ~ dpois(N2*lambda2)
+    # Priors
+    lambda1 ~  dunif(0, 10)
+    lambda2 ~  dunif(0, 10)
+    r =lambda2/lambda1
+ }")
+# Initialize the parameters
+inits      = list(lambda1= Y1/N1,lambda2 = Y2/N2)
+# Load the data and compile the MCMC code
+data       = list(N1 = N1,Y1 = Y1,N2 = N2,Y2 = Y2)
+model      = jags.model(model_string,data = data, inits=inits, n.chains=2)
+#Burn-in for 15000 samples
+update(model, 15000, progress.bar="none")
+params     = c("lambda1","lambda2","r")
+samples    = coda.samples(model, 
+             variable.names=params, 
+             n.iter=30000, progress.bar="none")
+```
+
+```{r fig.width=6, fig.height=8}
+plot(samples)
+```
+```{r}
+summary(samples)
+effectiveSize(samples)
+gelman.diag(samples)
+```
+
+Since ESS is over 1000 and gelman gives a values less than 1.1 indicates convergence, we conclude we should get convergent trace which can also be seen from the plots.
+
+**Problem 2**
+
+A clinical trial gave six subjects a placebo and six subjects a new
+weight loss medication. The response variable is the change in
+weight (pounds) from baseline (so -2.0 means the subject lost 2
+pounds). The data for the 12 subjects are:
+
+|Placebo| Treatment|
+|:----------------------|:-----------------------|
+| 2.0 | -3.5|
+|-3.1 | -1.6|
+|-1.0 | -4.6|
+| 0.2 | -0.9|
+| 0.3 | -5.1|
+| 0.4 |  0.1|
+
+
+We conduct a Bayesian analysis to compare the means of these two
+groups. Would you say the treatment is effective? Is your conclusion
+sensitive to the prior?
+
+\textbf{Solution:}
+
+Assume two cases: i) two groups have the same variance and ii)two groups have the different variance. 
+
+In first case, let the placebo group is $Y_i\sim^{iid} \mathcal{N}(\mu,\sigma^2)$ for $i = 1,2,...,n_1$ and  treatment group is $Y_i\sim^{iid} \mathcal{N}(\mu+\delta,\sigma^2)$ for $i = n_1+1,n_1+2,...,n_1+n_2=n.$. The objective is to test whether $\delta=0$ and thus the two groups have the same population mean. Since, the true variance of the groups are unknown we would like to  use Jeffrey's prior $\pi(\mu, \delta, \sigma^2)$ the marginal posterior distribution of $\delta$ integrating over both $\mu$ and $\sigma^2$ is $$ \delta|rest \sim t_{n}\Bigg[ \bar Y_2- \bar Y_1,\hat\sigma^2\bigg( \frac{1}{n_1}+\frac{1}{n_2}\bigg)\Bigg].$$ where $\bar Y_1$ and $\bar Y_2$ are the mean of Placebo and Treatment group, respectively.
+
+In second case we assume $Y_i\sim^{iid} \mathcal{N}(\mu,\sigma_1^2)$ for $i = 1,2,...,n_1$ and $Y_i\sim^{iid} \mathcal{N}(\mu+\delta,\sigma_2^2)$ for $i = n_1+1,n_1+2,...,n_1+n_2=n.$ Then the posterior can be approximated MCMC. 
+
+```{r}
+set.seed(100)
+Y1 = c(2.0, -3.1, -1.0,0.2,0.3,0.4)
+Y2 = c(-3.5, -1.6, -4.6,-0.9,-5.1,0.1)
+
+Ybar1 = mean(Y1)
+s21   = mean((Y1-Ybar1)^2)
+n1    = length(Y1)
+
+
+Ybar2 = mean(Y2)
+s22   = mean((Y2-Ybar2)^2)
+n2    =length(Y2)
+
+# Posterior of the difference assuming equal variance
+delta_hat =Ybar2-Ybar1
+s2        =(n1*s21 + n2*s22)/(n1+n2)
+scale     =sqrt(s2)*sqrt(1/n1+1/n2)
+df        =n1+n2
+cred_int  =delta_hat + scale*qt(c(0.025,0.975),df=df)
+delta_hat
+cred_int
+
+# Posterior of delta assuming unequal variance using MC sampling
+mu1      = Ybar1 + sqrt(s21/n1)*rt(1000000,df=n1)
+mu2      = Ybar2 + sqrt(s22/n2)*rt(1000000,df=n2)
+delta    = mu2-mu1
+
+hist(delta,main="Posterior distribution of the difference in means",xlim = c(-9,4), breaks = 100)
+quantile(delta,c(0.025,0.975)) # 95% credible set
+
+```
+
+The credible set excludes zero and so there is some evidence that the mean differs by treatment group for the first case. For the second case, 0 is included in credible interval so the mean is not different for treatment group. In order to test sensitivity to the prior, we use vague but proper priors to fit the model. 
+
+```{r}
+library(rjags)
+data = list(n=6,Y1=Y1,Y2=Y2)
+
+model_string = textConnection("model{
+
+ # Likelihood
+ for(i in 1:n){
+   Y1[i] ~ dnorm(mu,tau)
+   Y2[i] ~ dnorm(mu+delta,tau)
+ }
+
+ # Priors
+ mu    ~  dnorm(0, 0.0001)
+ delta ~  dnorm(0, 0.0001)
+ tau   ~  dgamma(0.1, 0.1)
+ sigma = 1/sqrt(tau)
+}")
+
+model   = jags.model(model_string,data = data, n.chains=2,quiet=TRUE)
+update(model, 10000, progress.bar="none")
+params  = c("delta")
+samples = coda.samples(model, 
+          variable.names=params, 
+          n.iter=50000, progress.bar="none")
+summary(samples)
+```
+
+We observe that the results are slightly different as zero is included in the interval.
+
+
+
+
+**Problem 3**
+
+The response variable is `medv`, the median value of owner-occupied
+homes (in $1,000s), and the other 13 variables are covariates that
+describe the neighborhood.
+
+(a) Fit a Bayesian linear regression model with uninformative
+Gaussian priors for the regression coefficients. Verify the
+MCMC sampler has converged, and summarize the posterior
+distribution of all regression coefficients.
+
+Firstly, we analyze the data if some values are missed.
+```{r}
+library(MASS)
+data(Boston)
+summary(Boston)
+```
+
+So, it seems good. Next we construct Bayesian model with uninformative Gaussian prior.
+```{r}
+Y = Boston%>%
+  dplyr::select(medv)
+Y = as.matrix(Y)
+X = Boston%>%
+  dplyr::select(-medv)
+#Standardize covariates
+X = scale(X)
+X = cbind(1,X)
+colnames(X)[1]="Intercept"
+names=colnames(X)
+#Load the data.
+data = list(n=length(Y),p=ncol(X),Y=Y,X=X)
+#define model string
+model_string = textConnection("model{
+# Likelihood
+for(i in 1:n){
+Y[i,] ~ dnorm(inprod(X[i,],beta[]),tau)
+}
+# Priors
+beta[1]~dnorm(0, 0.0001)
+for(j in 2:p){beta[j] ~ dnorm(0,taub*tau)}
+tau ~ dgamma(0.1,0.1)
+taub ~ dgamma(0.1, 0.1)
+}")
+model = jags.model(model_string, data = data, n.chains=2,quiet=TRUE)
+update(model, 10000, progress.bar="none")
+params = c("beta")
+samples = coda.samples(model, variable.names=params, n.iter=10000,progress.bar="none")
+
+effectiveSize(samples)
+gelman.diag(samples)
+
+sum                      = summary(samples)
+rownames(sum$statistics) = names
+rownames(sum$quantiles)  = names
+sum$statistics           = round(sum$statistics,4)
+sum$quantiles            = round(sum$quantiles,4)
+sum
+
+```
+
+Since the effective size is more than 1000 and and the Gelman-Rubin statistics are 1.0, the chains have clearly converged. Also, credible intervals include zero for the predictors indus and age so they are not significant.
+
+(b) Perform a classic least squares analysis (e.g., using the lm function
+in R). Compare the results numerically and conceptually
+with the Bayesian results.
+
+```{r}
+ols_data = cbind(Y,X[,2:14])
+ols_data = data.frame(ols_data)
+ols_model = lm(medv~.-medv, data = ols_data)
+#ols_model$coefficients
+tidy(ols_model)
+```
+
+They are numerically almost equivalent. However, in Bayesian approach this is parameter rather than fixed number. Hence, all coefficients have distributions. Even though, their representation are same, their interpretations are completely different. We again see that indus and age are not significant since their intervals have zero.
+
+(c) Refit the Bayesian model with double exponential priors for the
+regression coefficients, and discuss how the results differ from
+the analysis with uninformative priors.
+
+```{r}
+model_string = textConnection("model{
+ # Likelihood
+  for(i in 1:n){
+    Y[i,] ~ dnorm(inprod(X[i,],beta[]),taue)
+  }
+ # Priors
+ beta[1] ~ dnorm(0,0.001)
+  for(j in 2:p){
+    beta[j] ~ ddexp(0,taue*taub)
+  }
+  taue  ~ dgamma(0.1, 0.1)
+  taub  ~ dgamma(0.1, 0.1)
+}")
+
+model = jags.model(model_string,data = data, n.chains = 2,quiet=TRUE)
+params  = c("beta")
+update(model, 10000, progress.bar="none")
+samples2 = coda.samples(model, variable.names=params, n.iter=20000,progress.bar="none")
+```
+
+
+```{r}
+effectiveSize(samples2)
+gelman.diag(samples2)
+sum                      = summary(samples2)
+rownames(sum$statistics) = names
+rownames(sum$quantiles)  = names
+sum$statistics           = round(sum$statistics,4)
+sum$quantiles            = round(sum$quantiles,4)
+sum
+```
+
+
+```{r figures-side, fig.show="hold", out.width="33%"}
+for(j in 2:14){
+# Collect the MCMC iteration from both chains for the two priors
+s1 = c(samples[[1]][,j],samples[[2]][,j])
+s2 = c(samples2[[1]][,j],samples2[[2]][,j])
+
+# Get smooth density estimate for each prior
+d1 = density(s1)
+d2 = density(s2)
+# Plot the density estimates
+mx = max(c(d1$y,d2$y))
+plot(d1$x,d1$y,type="l",ylim=c(0,mx),xlab=expression(beta),ylab="Posterior density",main=names[j])
+lines(d2$x,d2$y,lty=2)
+abline(v=0)
+legend(1, 95, legend=c("Uninformative Gaussian", "Bayesian LASSO"),
+     col=c("red", "blue"), lty=1:2, cex=0.8)
+}
+```
+
+Since we have enough data points the choice of prior have only minor affect. It also shown in figures.
+
+(d) Fit a Bayesian linear regression model in (a) using only the first
+500 observations and compute the posterior predictive distribution
+for the final 6 observations. Plot the posterior predictive
+distribution versus the actual value for these 6 observations and
+comment on whether the predictions are reasonable.
+
+
+```{r}
+Y_train = Y[1:500,]
+Y_test  = Y[501:506,]
+X_train = X[1:500,]
+X_test  = X[501:506,]
+n_train = length(Y_train)
+n_test  = length(Y_test)
+p       = ncol(X_train)
+
+model_string <- textConnection("model{
+   # Likelihood
+  for(i in 1:no){
+    Yo[i]   ~ dnorm(muo[i],inv.var)
+    muo[i] = inprod(Xo[i,],beta[])
+  }
+
+  # Prediction
+  for(i in 1:np){
+    Y_test[i]  ~ dnorm(mup[i],inv.var)
+    mup[i] = inprod(Xp[i,],beta[])
+  }
+
+  # Priors
+beta[1] ~ dnorm(0,0.001)
+for(j in 2:p){beta[j] ~ dnorm(0,taub*inv.var)}
+taub ~ dgamma(0.1, 0.1)
+inv.var   ~ dgamma(0.01, 0.01)
+sigma     = 1/sqrt(inv.var)
+}")
+
+data  = list(Yo=Y_train,no=n_train,np=n_test,p=p,Xo=X_train,Xp=X_test)
+model = jags.model(model_string, data = data)
+
+```
+```{r}
+update(model, 10000, progress.bar="none")
+samp = coda.samples(model, 
+        variable.names=c("beta","sigma","Y_test"), 
+        n.iter=20000, progress.bar="none")
+
+summary(samp[,-c(1:n_test)])
+```
+```{r}
+samps           = samp[[1]]
+Y_test.samps    = samps[,1:n_test] 
+beta.samps      = samps[,n_test+1:p]
+sigma.samps     = samps[,ncol(samps)]
+
+# Compute the posterior mean for the plug-in predictions  
+
+beta.mn         = colMeans(beta.samps)
+sigma.mn        = mean(sigma.samps)
+```
+```{r,echo=TRUE,out.width="50%"}
+# Plot the PPD and plug-in
+ for(j in 1:6){
+    # Plug-in
+    mu <- sum(X_test[j,]*beta.mn)
+    y  <- rnorm(20000,mu,sigma.mn)
+    plot(density(y),col=2,xlab="Y",main="PPD")
+
+    # PPD
+    lines(density(Y_test.samps[,j]))
+
+    # Truth
+    abline(v=Y_test[j],col=3,lwd=2)
+    legend("topright",c("PPD","Plug-in","Truth"),col=1:3,lty=1,inset=0.05)
+ }
+```
+```{r}
+# plug-in 95% intervals
+low1   =  X_test%*%beta.mn - 1.96*sigma.mn
+high1  =  X_test%*%beta.mn + 1.96*sigma.mn
+cover1 =  mean(Y_test>low1 & Y_test<high1)
+mean(cover1)
+
+# PPD 95% intervals
+low2   =  apply(Y_test.samps,2,quantile,0.025)
+high2  =  apply(Y_test.samps,2,quantile,0.975)
+cover2 =  mean(Y_test>low2 & Y_test<high2)
+mean(cover2)
+```
+
+
+From plots we observe that both plug-in prediction and PPD give reasonable predictions.
+
