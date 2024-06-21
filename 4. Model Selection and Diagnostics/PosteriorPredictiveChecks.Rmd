@@ -1,0 +1,196 @@
+---
+title: 
+output: pdf_document
+---
+
+\section{Bayesian p-values for the Guns laws data}
+
+
+The data for this analysis come from “Firearm legislation and firearm mortality in the USA: a cross-sectional, state-level study” by Kalesan et. al. (2016). The response variable, $Y_i$, s the number of firearm-related deaths in 2010 in state $i$. This is regressed onto five potential confounders $Z_{ij}$.
+
+The covariates of interest are the indicators of whether the state has certain gun laws. Let $X_{il}$ ndicate that state $i$ has law number $l$. In this example, we simply use the number of laws $X_i=\sum_{l}X_{il}$ as the covariate.
+
+In this analysis our objective is illustrate the use of posterior predictive checks to verify that the model fits well. We compare two models:
+
+Model 1 - Poisson regression: The first model is the Poisson model we have fit previously 
+
+$$Y_i \sim \mbox{Poisson}(\lambda_i)\mbox{  where } \lambda_i=N_i\exp(\alpha + \sum_{j=1}^5Z_{ij}\beta_j+X_{i}\beta_6)$$
+
+and $N_i$ s the state's population.
+
+Model 2 - Negative-binomial regression: A limitation of the Poisson likelihood is that the variance equals the mean. To allow for a larger variance than the mean (i.e., overdispersion) we replace the Poisson likelihood with the negative binomial likelihood the same mean $\lambda_i$ and over-dispersion parameter $m>0$. 
+
+$$Y_i \sim \mbox{NB}\left(\frac{m}{\lambda_i+m},m\right).$$
+
+Posterior predictive checks are performed for the following test statistics:
+
+$$D_1(Y) = \mbox{max}(Y_1,…,Y_n)$$
+$$D_2(Y) = \mbox{min}(Y_1,…,Y_n)$$
+
+$$D_3(Y) = \mbox{max}(Y_1,…,Y_n) - \mbox{min}(Y_1,…,Y_n)$$
+
+$$D_4(Y) = \mbox{max}(Y_1/N_1,…,Y_n/N_n)$$
+
+$$D_5(Y) = \mbox{min}(Y_1/N_1,…,Y_n/N_n)$$
+
+$$D_6(Y) = \mbox{max}(Y_1/N_1,…,Y_n/N_n)-\mbox{min}(Y_1/N_1,…,Y_n/N_n)$$
+
+\section{1. Load the data}
+
+```{r}
+load("/guns.RData")
+ X  <- rowSums(X)
+ n  <- length(Y)
+```
+
+\section{2. Specify two competing models:}
+
+```{r}
+# (1) Poisson regression
+
+ model_string1 <- "model{
+
+  # Likelihood
+  for(i in 1:n){
+    Y[i]           ~ dpois(lambda[i])
+    log(lambda[i]) <- log(N[i]) + alpha + inprod(Z[i,],beta[1:5]) + X[i]*beta[6]
+  }
+
+  #Priors
+   for(j in 1:6){
+      beta[j] ~ dnorm(0,0.1)
+   }
+   alpha ~ dnorm(0,0.1)
+
+
+  # Posterior preditive checks
+  for(i in 1:n){
+    Y2[i]    ~ dpois(lambda[i])
+    rate[i] <- Y2[i]/N[i]
+  }
+  D[1] <- min(Y2[])
+  D[2] <- max(Y2[])
+  D[3] <- max(Y2[])-min(Y2[])
+  D[4] <- min(rate[])
+  D[5] <- max(rate[])
+  D[6] <- max(rate[])-min(rate[])
+
+ }"
+
+
+ # (2) Over-dispersed Poisson
+ model_string2 <- "model{
+
+  # Likelihood (note hierarchical centering)
+  for(i in 1:n){
+    Y[i]            ~ dnegbin(q[i],m)
+    q[i]           <- m/(m+N[i]*lambda[i])
+    log(lambda[i]) <- alpha + inprod(Z[i,],beta[1:5]) + X[i]*beta[6]
+  }
+
+  #Priors
+   for(j in 1:6){
+      beta[j] ~ dnorm(0,0.1)
+   }
+   alpha ~ dnorm(0,0.1)
+   m     ~ dgamma(0.1,0.1)
+
+  # Posterior preditive checks
+  for(i in 1:n){
+    Y2[i]    ~ dnegbin(q[i],m)
+    rate[i] <- Y2[i]/N[i]
+  }
+
+  D[1] <- min(Y2[])
+  D[2] <- max(Y2[])
+  D[3] <- max(Y2[])-min(Y2[])
+  D[4] <- min(rate[])
+  D[5] <- max(rate[])
+  D[6] <- max(rate[])-min(rate[])
+
+ }"
+```
+
+\section{3. Fit the two models}
+
+```{r,echo=TRUE,out.width="50%"}
+library(rjags)
+
+
+  model1 <- jags.model(textConnection(model_string1), 
+                    data = list(Y=Y,N=N,n=n,X=X,Z=Z),n.chains=1,
+                    quiet=TRUE)
+  update(model1, 10000, progress.bar="none")
+  samps1 <- coda.samples(model1, 
+            variable.names=c("D","beta"), 
+            n.iter=20000, progress.bar="none")
+  plot(samps1)
+
+```
+
+```{r}
+ print(summary(samps1))
+```
+
+```{r,echo=TRUE,out.width="50%"}
+  D1  <- samps1[[1]]
+
+
+  model2 <- jags.model(textConnection(model_string2), 
+                    data = list(Y=Y,N=N,n=n,X=X,Z=Z),n.chains=1,
+                    quiet=TRUE)
+  update(model2, 10000, progress.bar="none")
+  samps2 <- coda.samples(model2, 
+            variable.names=c("D","beta"), 
+            n.iter=20000, progress.bar="none")
+  plot(samps2)
+```
+
+```{r}
+  print(summary(samps2))
+```
+
+```{r}
+  D2  <- samps2[[1]]
+```
+
+\section{4. Compute the Bayesian p-values}
+
+```{r,echo=TRUE,out.width="50%"}
+# Compute the test stats for the data
+  rate <- Y/N
+  D0   <- c(   min(Y),   max(Y),      max(Y)-min(Y),
+            min(rate),max(rate),max(rate)-min(rate))
+  Dnames <- c("Min Y", "Max Y", "Range Y", "Min rate", "Max rate", "Range rate")
+
+  # Compute the test stats for the models
+
+  pval1 <- rep(0,6)
+  names(pval1)<-Dnames
+  pval2 <- pval1
+
+  for(j in 1:6){
+    plot(density(D1[,j]),xlim=range(c(D0[j],D1[,j],D2[,j])),
+                        xlab="D",ylab="Posterior probability",
+                        main=Dnames[j])
+   lines(density(D2[,j]),col=2)
+   abline(v=D0[j],col=3)
+   legend("topleft",c("Poisson","NB","Data"),lty=1,col=1:3,bty="n")
+
+   pval1[j] <- mean(D1[,j]>D0[j]) 
+   pval2[j] <- mean(D2[,j]>D0[j]) 
+  }
+
+```
+
+\section{5. Results}
+
+```{r}
+  pval1
+  pval2
+  
+```
+
+The regular Poisson model has several p-values near zero or one, so it doesn't seem to fit well. The negative binomial model fits better.s
+
+

@@ -1,0 +1,153 @@
+---
+title: 
+output: pdf_document
+---
+
+\section{Variable selection for the Gambia data}
+
+
+The gambia data in the geoR package includes data for 1332 children in the Gambia. The binary response $Y_i$ is the indictor that child $i$ tested positive for malaria. We use five covariates in $X_{ij}$.
+
+1. Age: age of the child, in days
+
+2. Netuse: indicator variable denoting whether (1) or not (0) the child regularly sleeps under a bed-net
+
+3. Treated: indicator variable denoting whether (1) or not (0) the bed-net is treated (coded 0 if netuse=0)
+
+4. Green: satellite-derived measure of the greenness of vegetation in the immediate vicinity of the village (arbitrary units)
+
+5. PCH: indicator variable denoting the presence (1) or absence (0) of a health center in the village
+
+
+We use the logit regression model
+
+$$\mbox{logit}[\mbox{Prob}(Y_i=1)) = \alpha + \sum_{j=1}^pX_{ij}\beta_j.$$
+
+The spike-and-slab prior for $\beta_j=\gamma_j\delta_j$ where $\gamma_j\sim\mbox{Bernoulli}(0.5)$ and $\delta_j\sim\mbox{Normal}(0,\tau^2)$.
+
+\section{Load the data}
+
+```{r}
+library(geoR)
+data(gambia)
+Y <- gambia[,3]
+X <- gambia[,4:8]
+Y[1:5]
+X[1:5,]
+```
+
+```{r,echo=TRUE,out.width="50%"}
+names <- c("Age","Netuse","Treated","Green","PCH")
+for(j in 1:5){
+  boxplot(X[,j]~Y,main=names[j])
+}
+```
+
+```{r}
+# Standardize X
+X <- scale(X)
+X[1:5,]
+```
+
+```{r}
+n <- length(Y)
+p <- ncol(X)
+```
+
+\section{Define the models in JAGS}
+
+```{r}
+library(rjags)
+
+m <- textConnection("model{
+ for(i in 1:n){
+   Y[i]          ~ dbern(pi[i])
+   logit(pi[i]) <- alpha          + X[i,1]*beta[1] + X[i,2]*beta[2] + 
+                   X[i,3]*beta[3] + X[i,4]*beta[4] + X[i,5]*beta[5]
+ }
+ for(j in 1:5){
+    beta[j] <- gamma[j]*delta[j]
+    gamma[j] ~ dbern(0.5)
+    delta[j] ~ dnorm(0,tau)
+ }
+ alpha ~ dnorm(0,0.01)
+ tau   ~ dgamma(0.1,0.1)
+}")
+```
+
+\section{Fit the model}
+
+```{r,echo=TRUE,out.width="50%"}
+data   <- list(Y=Y,X=X,n=n)
+burn   <- 10000
+iters  <- 50000
+chains <- 3 
+model  <- jags.model(m,data = data, n.chains=chains,quiet=TRUE)
+update(model, burn, progress.bar="none")
+samps  <- coda.samples(model, variable.names=c("beta"), 
+                      thin=5, n.iter=iters, progress.bar="none")
+plot(samps)
+```
+
+
+\section{Summarize the marginal distributions of the $\beta_j$}
+
+```{r,echo=TRUE,out.width="50%"}
+beta    <- NULL
+for(l in 1:chains){
+ beta <- rbind(beta,samps[[l]])
+}
+colnames(beta) <- names
+
+for(j in 1:5){
+ hist(beta[,j],xlab=expression(beta[j]),ylab="Posterior density",
+      breaks=100,main=names[j])
+}
+```
+
+
+```{r}
+library(kableExtra)
+Inc_Prob <- apply(beta!=0,2,mean)
+ Q        <- t(apply(beta,2,quantile,c(0.5,0.05,0.95)))
+ out      <- cbind(Inc_Prob,Q)
+
+ kbl(round(out,2))
+```
+
+\textbf{Summary:} Age, bed-net use and greenness are included with posterior probability one and are thus clearly important predictors of malaria. Treatment of the bed net and proximity to a health center are included with posterior probability more than a half and so there is moderate evidence that these variables are important predictors of malaria prevalence. The posterior distribution of these parameters has an unusual shape: they are a combination of a Gaussian curve for samples that include the variable and a spike at zero for samples that exclude the variable.
+
+\section{Compute the posterior probability of each model}
+
+```{r}
+model <- "Intercept" 
+ for(j in 1:5){
+   model <- paste(model,ifelse(beta[,j]==0,"","+"))
+   model <- paste(model,ifelse(beta[,j]==0,"",names[j]))
+ }
+ model[1:5]
+```
+
+```{r}
+beta[1:5,]
+```
+
+
+```{r}
+model_probs <- table(model)/length(model)
+model_probs <- sort(model_probs,dec=T)
+round(model_probs,3)
+```
+
+\textbf{Summary:} Three models dominate the posterior probability:
+
+Intercept + Age + Netuse + Green + Treated
+
+Intercept + Age + Netuse + Green + Treated + PCH
+
+Intercept + Age + Netuse + Green + PCH
+
+Therefore it is clear that age, bed net use and greeness should be included in the model, but uncertainty about whether one or both of the remaining two variables should be included.
+
+
+
