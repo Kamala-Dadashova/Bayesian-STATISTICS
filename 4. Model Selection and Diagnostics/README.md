@@ -45,9 +45,9 @@ This repository contains various techniques for selecting and comparing statisti
 
 ## Requirements
 To view and run the examples provided, you will need:
-- **PDF Reader:** To view the `Bayesian_computation.pdf` file.
-- **R and RStudio:** To run the R code and view the `Bayesian_computation.Rmd` file.
-- **Web Browser:** To view the `Bayesian_computation.html` file.
+- **PDF Reader:** To view the `pdf` file.
+- **R and RStudio:** To run the R code and view the `Rmd` file.
+- **Web Browser:** To view the `html` file.
 - **R Packages:**
   - `rjags:` For running MCMC methods.
   - `ggplot2:` For creating visualizations.
