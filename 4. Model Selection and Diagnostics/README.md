@@ -14,7 +14,7 @@ This repository contains various techniques for selecting and comparing statisti
   - **Deviance Information Criteria (DIC):**
   - **Watanabe-Akaike Information Criteria (WAIC):**
 
-<img src="./model_diag.jpeg" alt="Bayesian-STATISTICS" width="300"/>
+<img src="./model_diag.jpeg" alt="Bayesian-STATISTICS" width="500"/>
 
 ### 2. Posterior Predictive Checks
 - Evaluates model fit by comparing observed data to data simulated from the model.
