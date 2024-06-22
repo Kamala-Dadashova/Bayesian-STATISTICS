@@ -6,9 +6,12 @@
 Bayesian statistics treats probability as a measure of belief or certainty. Using Bayes' Theorem, it continuously updates the probability of a hypothesis as new data arrives.
 
 <p align="center">
-<img src="./bayesfun.jpg" alt="Bayesian-STATISTICS" width="500"/>
-\url{https://pactiss.org/2011/11/02/bayesian-inference-homo-bayesianis/}
-<p>
+  <img src="./bayesfun.jpg" alt="./bayesfun.jpg" />
+  <br />
+  <span style="font-size: small;">
+    <a href="https://pactiss.org/2011/11/02/bayesian-inference-homo-bayesianis/" target="_blank">Source</a>
+  </span>
+</p>
 
 
 
