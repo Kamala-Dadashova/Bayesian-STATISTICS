@@ -31,4 +31,5 @@ Below are the key topics covered:
 - **R and RStudio** 
 - **R Packages:** Install the necessary R packages with the following command:
   ```r
-  install.packages(c("rjags", "ggplot2", "tidyverse", "ggforce"))
+  install.packages(c("rjags", "coda", "ggplot2", "tidyverse", "ggforce"))
+
