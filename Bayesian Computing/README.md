@@ -1,7 +1,8 @@
 # Bayesian Computation
 Bayesian computation involves various methods to perform inference on the posterior distribution of model parameters given data. Below are some key methods and concepts used in Bayesian computation:
 
-![Bayesian-Statistics](./MCMC.jpeg)
+
+<img src="./MCMC.jpeg" alt="Bayesian-STATISTICS" width="500"/>
 
 Harms, R. L., & Roebroeck, A. (2018). Robust and Fast Markov Chain Monte Carlo Sampling of Diffusion MRI Microstructure Models. Frontiers in Neuroinformatics, 12, 97.
 
