@@ -14,12 +14,12 @@ Bayesian statistics treats probability as a measure of belief or certainty. Usin
 </p>
 
 
-### Key Elements:
+### Key Concepts:
 - **Prior Probability**: Your initial guess or belief.
 - **Likelihood**: How likely the new evidence is, given your hypothesis.
 - **Posterior Probability**: Updated belief after considering the evidence.
 
-### Why It’s Exciting:
+### Why It’s Exciting?
 1. **Machine Learning**: Powers Bayesian networks and Gaussian processes.
 2. **Healthcare**: Enhances diagnostic accuracy.
 3. **Finance**: Improves risk assessment.

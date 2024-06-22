@@ -42,7 +42,7 @@ Ensuring that the Markov chain has converged to the target distribution is cruci
 - **Burn-in Period:** Discards initial samples that may not have reached the equilibrium distribution.
 - **Thinning:** Reduces autocorrelation by only keeping every nth sample.
 
-## Illustrative Examples
+## Examples
 The files `Bayesian_computation.pdf` and `Bayesian_computation.Rmd` in this repository provide detailed examples and further illustrations of these concepts. These files include:
 
 - Example R code for implementing MCMC and Gibbs sampling.
