@@ -5,7 +5,10 @@ This repository contains various Bayesian statistical methods and models, implem
 - **Generalized Linear Models:** Extending linear models to handle different types of response variables.
 - **Random Effects:** Modeling data with hierarchical structures using random effects.
 
-  ![Bayesian-Statistics](./random-effect.png)
+<p align="center">
+  <img src="./random-effect.png" alt="./random-effect.png" width="700" />
+</p>
+
 
 ### Flexible Models
 - **Non-linear Regression:** Implementing regression models for non-linear relationships.
