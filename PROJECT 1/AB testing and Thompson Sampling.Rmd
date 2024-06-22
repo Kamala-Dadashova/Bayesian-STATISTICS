@@ -16,7 +16,7 @@ Let $\theta_1$ and $\theta_2$ be the true retention probabilities under the two 
 (B) The plot for the posterior distributions of $\theta_1$ and $\theta_2$ is.
 
 ```{r}
-# Load necessary libraries
+# Load libraries
 suppressPackageStartupMessages({
   library(tibble)
   library(ggplot2)
