@@ -2,7 +2,7 @@
 
 **Unlock the Power of Bayesian Statistics**: Imagine updating your beliefs with every new piece of evidence, just like a detective solving a mystery. That’s Bayesian statistics! 
 
-### What Is It ß?
+### What Is It ?
 Bayesian statistics treats probability as a measure of belief or certainty. Using Bayes' Theorem, it continuously updates the probability of a hypothesis as new data arrives.
 <img src="./bayesfun.jpg" alt="Bayesian-STATISTICS" width="500"/>
 
