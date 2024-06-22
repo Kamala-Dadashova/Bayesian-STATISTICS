@@ -1,7 +1,6 @@
 
 This repository contains various Bayesian statistical methods and models, implemented and explained with practical examples. I have taken the problems from Professor Brian Reich's book for graduate students, who taught me Applied Bayesian Statistics course. Thanks to him for making course so enjoyable and for inspiring us to delve deeper into the world of Bayesian statistics. 
 
-
 Below are the key topics covered:
 
 - **Bayesian t-tests:** Implementing Bayesian alternatives to traditional t-tests.
