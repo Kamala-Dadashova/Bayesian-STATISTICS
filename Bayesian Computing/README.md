@@ -1,12 +1,15 @@
 # Bayesian Computation
 Bayesian computation involves various methods to perform inference on the posterior distribution of model parameters given data. Below are some key methods and concepts used in Bayesian computation:
 
+
 <p align="center">
-   <img src="./MCMC.jpeg" alt="Bayesian-STATISTICS" width="700"/>
+  <img src="./MCMC.jpeg" alt="./MCMC.jpeg" width="700" />
+  <br />
+  <span style="font-size: small;">
+    <a href="https://www.frontiersin.org/articles/10.3389/fninf.2018.00097/full" target="_blank">Source Paper</a>
+  </span>
 </p>
 
-
-Harms, R. L., & Roebroeck, A. (2018). Robust and Fast Markov Chain Monte Carlo Sampling of Diffusion MRI Microstructure Models. Frontiers in Neuroinformatics, 12, 97.
 
 ## Deterministic Methods
 Deterministic methods provide exact or approximate solutions to Bayesian inference without relying on randomness. These methods include:
