@@ -5,7 +5,9 @@
 ### What Is It ?
 Bayesian statistics treats probability as a measure of belief or certainty. Using Bayes' Theorem, it continuously updates the probability of a hypothesis as new data arrives.
 
+<p align="center">
 <img src="./bayesfun.jpg" alt="Bayesian-STATISTICS" width="500"/>
+<p>
 
 https://pactiss.org/2011/11/02/bayesian-inference-homo-bayesianis/
 
