@@ -1,0 +1,164 @@
+---
+title:
+output: pdf_document
+---
+
+\section{Multiple linear regression prediction}
+
+Let $Y_i$ be the percent increase in GOP support from 2012 to 2016 in county $i=1,…,n$. We model
+
+$$Y_i|\beta,\sigma^2\sim \mbox{Normal}(\alpha+X_{1i}\beta_1+…+X_{pi}\beta_p,\sigma^2)$$
+
+where $X_{ji}$ s the $j^{th}$ covariate for county $i$. All variables are centered and scaled. We select prior $\sigma^2\sim\mbox{InvGamma}(0.01,0.01)$ and $\alpha\sim\mbox{Normal}(0,100)$ for the error variance and intercept, and compare different priors for the regression coefficients. 
+
+\section{Load and standardize the election data}
+
+```{r,echo=FALSE}
+load("/Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 6 Linear Models/election_2008_2016.RData")
+library(rjags)
+```
+```{r}
+ set.seed(1111)
+# Identify rows with NA in either Y or any column of X
+complete_rows <- complete.cases(Y, X)
+Y <- Y[complete_rows]
+X <- X[complete_rows,]
+ n    = length(Y)
+ p    = ncol(X)
+ n
+ p
+```
+
+```{r}
+#Scaling input features
+ X    = scale(X)
+#Fit the model by using sample size of 100 datasets for the training and use the remaining as a test dataset
+# Generate a random permutation of indices from 1 to n
+indices =sample(n)
+# Logical vector indicating whether the index is greater than 100
+test=indices > 100
+# Create a table of the logical vector
+table(test)
+```
+
+```{r}
+ # Train data
+ Y_train    = Y[!test]   
+ X_train    = X[!test,]
+ #Test data
+ Y_test    = Y[test]    
+ X_test    = X[test,]
+ n_train    = length(Y_train)
+ n_test    = length(Y_test)
+ p     = ncol(X_train)
+```
+
+\section{Fit the linear regression model with Gaussian priors}
+
+```{r}
+model_string = "model{
+
+  # Likelihood
+  for(i in 1:n_train){
+    Y_train[i]   ~ dnorm(muo[i],inv.var)
+    muo[i] <- alpha + inprod(X_train[i,],beta[])
+  }
+
+  # Prediction
+  for(i in 1:n_test){
+    Y_test[i]  ~ dnorm(mup[i],inv.var)
+    mup[i] <- alpha + inprod(X_test[i,],beta[])
+  }
+
+  # Priors
+  for(j in 1:p){
+    beta[j] ~ dnorm(0,0.0001)
+  }
+  alpha     ~ dnorm(0, 0.01)
+  inv.var   ~ dgamma(0.01, 0.01)
+  sigma     <- 1/sqrt(inv.var)
+}"
+```
+
+\section{Compile the model in JAGS}
+
+```{r}
+model = jags.model(textConnection(model_string), 
+                    data = list(Y_train=Y_train,n_train=n_train,n_test=n_test,p=p,X_train=X_train,X_test=X_test))
+```
+
+```{r}
+update(model, 10000, progress.bar="none")
+
+samp = coda.samples(model, 
+        variable.names=c("beta","sigma","Y_test","alpha"), 
+        n.iter=20000, progress.bar="none")
+
+summary(samp[,-c(1:n_test)])
+```
+
+\section{Plot samples from the posterior preditive distribution (PPD) and plug-in distribution}
+
+```{r,echo=TRUE,out.width="50%"}
+# Extract the samples for each parameter
+# Extract the samples for each parameter
+samps = as.matrix(samp)
+Y_test_samps = samps[, grep("Y_test", colnames(samps))]
+alpha_samps = samps[, "alpha"]
+beta_samps = samps[, grep("beta", colnames(samps))]
+sigma_samps = samps[, "sigma"]
+
+# Compute the posterior mean for the plug-in predictions
+compute_posterior_means <- function(alpha_samps, beta_samps, sigma_samps) {
+  list(
+    alpha_mn = mean(alpha_samps),
+    beta_mn = colMeans(beta_samps),
+    sigma_mn = mean(sigma_samps)
+  )
+}
+
+posterior_means <- compute_posterior_means(alpha_samps, beta_samps, sigma_samps)
+
+
+# Plot the PPD and plug-in
+plot_ppd_and_plugin <- function(X_test, Y_test, Y_test_samps, posterior_means, index) {
+  alpha_mn = posterior_means$alpha_mn
+  beta_mn = posterior_means$beta_mn
+  sigma_mn = posterior_means$sigma_mn
+  
+  mu = alpha_mn + sum(X_test[index, ] * beta_mn)
+  y = rnorm(20000, mu, sigma_mn)
+  
+  plot(density(y), col = 2, xlab = "Y", main = "PPD")
+  lines(density(Y_test_samps[, index]))
+  abline(v = Y_test[index], col = 3, lwd = 2)
+  legend("topright", c("PPD", "Plug-in", "Truth"), col = 1:3, lty = 1, inset = 0.05)
+}
+
+for (j in 1:5) {
+  plot_ppd_and_plugin(X_test, Y_test, Y_test_samps, posterior_means, j)
+}
+
+```
+
+
+```{r}
+# 95% intervals with plug-in approach
+alpha_mn <- posterior_means$alpha_mn
+beta_mn <- posterior_means$beta_mn
+sigma_mn <- posterior_means$sigma_mn
+
+low1 = alpha_mn + X_test %*% beta_mn - 1.96 * sigma_mn
+high1 = alpha_mn + X_test %*% beta_mn + 1.96 * sigma_mn
+cover1 = mean(Y_test > low1 & Y_test < high1)
+mean(cover1)
+
+# 95% intervals with PPD
+low2 = apply(Y_test_samps, 2, quantile, 0.025)
+high2 = apply(Y_test_samps, 2, quantile, 0.975)
+cover2 = mean(Y_test > low2 & Y_test < high2)
+mean(cover2)
+```
+
+
+PPD densities are moderately wider than the plug-in densities. It is expected. Since, this is the effect of accounting for uncertainty in $\beta$ and $\sigma$,  and it explains the slightly lower covarage for the plug-in predictions.

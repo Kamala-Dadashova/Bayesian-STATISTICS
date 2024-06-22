@@ -1,0 +1,260 @@
+---
+title: 
+output: pdf_document
+---
+
+\section{Multiple Linear Regression}
+
+We use the data from Barberan (2015), downloaded from http://figshare.com/articles/1000homes/1270900. The data are dust samples from the ledges above doorways from n=1,059 homes (after removing samples with missing data) in the continental US. Bioinformatics processing detects the presence or absence of 763 species (technically operational taxonomic units) of fungi. The response is the log of the number of fungi species present in the sample, which is a measure of species richness. The objective is to determine which factors influence a home's species richness. For each home, eight covariates are included in this example: longitude, latitude, annual mean temperature, annual mean precipitation, net primary productivity (NPP), elevation, the binary indicator that the house is a single-family home, and the number of bedrooms in the home. These covariates are all centered and scaled to have mean zero and variance one.
+
+The Bayesian multiple linear regression model is
+$$Y_i\sim\mbox{Normal}(\beta_0+\sum_{j=1}^px_{ij}\beta_j,\sigma^2).$$
+Three different priors for the slopes $\beta_1,…,\beta_p$ are chosen for comparison purpose
+
+1. Uninformative Gaussian: $\beta_j\sim\mbox{Normal}(0,2000)$
+
+2. Gaussian shrinkage: $\beta_j\sim\mbox{Normal}(0,\sigma_b^2)$ with $\sigma_b^2\sim\mbox{InvGamma}(0.2,0.2)$
+
+3. Bayesian LASSO: $\beta_j\sim\mbox{DE}(0,\sigma_b^2)$ with $\sigma_b^2\sim\mbox{InvGamma}(0.2,0.2)$
+
+In all cases, we use uninformative conjugate priors for the intercept $\beta_0\sim\mbox{Normal}(0,2000)$ and variance $\sigma^2\sim\mbox{InvGamma}(0.2,0.2)$
+
+\section{Load and plot the data}
+```{r,echo=FALSE}
+# Load libraries and data
+library(knitr)
+library(kableExtra)
+library(rjags)
+library(maps)
+library(ggplot2)
+library(cowplot)
+library(tidyr)
+library(dplyr)
+library(purrr)
+load("/Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 6 Linear Models/homes.RData")
+homes_data = as.data.frame(homes)
+column_names = names(homes_data)
+print(column_names)
+column_types =sapply(homes_data, class)
+print(column_types)
+```
+
+```{r}
+##Covariates(features)
+city     = homes[,2]
+state    = homes[,3]
+lat      = homes[,4]
+long     = homes[,5]
+temp     = homes[,6]
+precip   = homes[,7]
+NPP      = homes[,8]
+elev     = homes[,9]
+house    = ifelse(homes[,10]=="One-family house detached from any other house",1,0)
+bedrooms = as.numeric(homes[,11])
+```
+
+```{r}
+#Data Prep
+OTU      = as.matrix(OTU)
+nspecies = rowSums(OTU>0)
+Y        = log(nspecies)
+X        = cbind(long,lat,temp,precip,NPP,elev,house,bedrooms)
+names    = c("Longitude","Latitude",
+              "Temperature","Precipitation","NPP",
+              "Elevation","Single-family home",
+              "Number of bedrooms")
+
+#Remove observations with missing data
+#Combine the data into a data frame
+data    = data.frame(Y, X, city, state)
+#Filter out rows with any NA values
+complete_rows = complete.cases(data)
+Y = Y[complete_rows]
+X = X[complete_rows, ]
+city = city[complete_rows]
+state = state[complete_rows]
+
+#Standardize the covariates
+X = as.matrix(scale(X))
+
+# Plot the sample locations
+homes_data = as.data.frame(homes)
+states_map =map_data("state")
+ggplot() +
+  geom_polygon(data = states_map, aes(x = long, y = lat, group = group), fill = "white", color = "black") +
+  geom_point(data = homes_data, aes(x = homes_data[, 5], y = homes_data[, 4]), color = "blue", size = 0.5) +
+  ggtitle("Sample locations") +
+  theme_minimal()
+
+```
+
+
+\section{Put the data in JAGS format}
+```{r}
+ n        = length(Y)
+ p        = ncol(X)
+ data   = list(Y=Y,X=X,n=n,p=p)
+ params = c("beta")
+ burn     = 10000
+ n.iter   = 20000
+ thin     = 10
+ n.chains = 2 #parallel chains
+```
+
+\section{(1) Fit the uninformative Gaussian model}
+```{r}
+ model_string = textConnection("model{
+   # Likelihood
+    for(i in 1:n){
+      Y[i] ~ dnorm(alpha+inprod(X[i,],beta[]),taue)
+    }
+   # Priors
+    for(j in 1:p){
+      beta[j] ~ dnorm(0,0.001)
+    }
+    alpha ~ dnorm(0,0.001)
+    taue  ~ dgamma(0.1, 0.1)
+ }")
+ model = jags.model(model_string,data = data, n.chains=n.chains,quiet=TRUE)
+ update(model, burn, progress.bar="none")
+ samples1 = coda.samples(model, variable.names=params, thin=thin, n.iter=n.iter, progress.bar="none")
+ par(mar=c(2,2,2,2))
+ plot(samples1)
+```
+
+```{r}
+ round(effectiveSize(samples1),1)
+```
+
+```{r}
+ sum                      = summary(samples1)
+ rownames(sum$statistics) = names
+ rownames(sum$quantiles)  = names
+ sum$statistics           = round(sum$statistics,3)
+ sum$quantiles            = round(sum$quantiles,3)
+ sum
+```
+
+\section{(2) Fit the Gaussian shrinkage model}
+```{r}
+ model_string = textConnection("model{
+   # Likelihood
+    for(i in 1:n){
+      Y[i] ~ dnorm(alpha+inprod(X[i,],beta[]),taue)
+    }
+   # Priors
+    for(j in 1:p){
+      beta[j] ~ dnorm(0,taue*taub)
+    }
+    alpha ~ dnorm(0,0.001)
+    taue  ~ dgamma(0.1, 0.1)
+    taub  ~ dgamma(0.1, 0.1)
+ }")
+
+ model = jags.model(model_string,data = data, n.chains=n.chains,quiet=TRUE)
+ update(model, burn, progress.bar="none")
+ samples2 = coda.samples(model, variable.names=params, thin=thin, n.iter=n.iter, progress.bar="none")
+ par(mar=c(2,2,2,2))
+ plot(samples2)
+```
+
+```{r}
+round(effectiveSize(samples2),1)
+```
+
+```{r}
+ sum                      = summary(samples2)
+ rownames(sum$statistics) = names
+ rownames(sum$quantiles)  = names
+ sum$statistics           = round(sum$statistics,3)
+ sum$quantiles            = round(sum$quantiles,3)
+ sum
+```
+
+\section{(3) Fit the Bayesian LASSO model}
+```{r}
+ model_string = textConnection("model{
+   # Likelihood
+    for(i in 1:n){
+      Y[i] ~ dnorm(alpha+inprod(X[i,],beta[]),taue)
+    }
+   # Priors
+    for(j in 1:p){
+      beta[j] ~ ddexp(0,taue*taub)
+    }
+    alpha ~ dnorm(0,0.001)
+    taue  ~ dgamma(0.1, 0.1)
+    taub  ~ dgamma(0.1, 0.1)
+ }")
+
+ model = jags.model(model_string,data = data, n.chains=n.chains,quiet=TRUE)
+ update(model, burn, progress.bar="none")
+ samples3 = coda.samples(model, variable.names=params, thin=thin, n.iter=n.iter, progress.bar="none")
+ par(mar=c(2,2,2,2))
+ plot(samples3)
+```
+
+```{r}
+ round(effectiveSize(samples3),1)
+```
+
+```{r}
+ sum                      = summary(samples3)
+ rownames(sum$statistics) = names
+ rownames(sum$quantiles)  = names
+ sum$statistics           = round(sum$statistics,3)
+ sum$quantiles            = round(sum$quantiles,3)
+ sum
+```
+
+\section{Compare the three fits}
+
+The plots below show the posterior for each covariate's slope for the three models:
+
+1. Uninformative Gaussian is the solid line
+2. Gaussian shrinkage is the dotted line
+3. Bayesian LASSO is the dashed line
+
+```{r,echo=TRUE,out.width="50%"}
+# Create an empty list to store the data frames
+df_list <- list()
+
+for(j in 1:p){
+  s1 <- c(samples1[[1]][,j], samples1[[2]][,j])
+  s2 <- c(samples2[[1]][,j], samples2[[2]][,j])
+  s3 <- c(samples3[[1]][,j], samples3[[2]][,j])
+
+  # Smooth densities
+  d1 <- density(s1)
+  d2 <- density(s2)
+  d3 <- density(s3)
+
+  # Convert density objects to data frames
+  df1 <- data.frame(x = d1$x, y = d1$y, group = "s1")
+  df2 <- data.frame(x = d2$x, y = d2$y, group = "s2")
+  df3 <- data.frame(x = d3$x, y = d3$y, group = "s3")
+
+  # Combine data frames
+  df_combined <- rbind(df1, df2, df3)
+  df_combined$parameter <- names[j]
+
+  # Store in list
+  df_list[[j]] <- df_combined
+}
+
+# Combine all data frames in the list into one data frame
+df_final <- do.call(rbind, df_list)
+
+ggplot(df_final, aes(x = x, y = y, color = group, linetype = group)) +
+  geom_line() +
+  facet_wrap(~ parameter, scales = "free_y") +
+  labs(x = expression(beta), y = "Posterior density") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_minimal()
+```
+
+Since number of observations is so much bigger than number of features, the prior has little effect on the posterior. Based on the result,temperature, NPP, elevation, and single-family home are the most important predictors in  all three models .
+
+
+
+
