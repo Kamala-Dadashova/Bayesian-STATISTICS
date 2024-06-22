@@ -7,9 +7,10 @@ Bayesian statistics treats probability as a measure of belief or certainty. Usin
 
 <p align="center">
 <img src="./bayesfun.jpg" alt="Bayesian-STATISTICS" width="500"/>
+\url{https://pactiss.org/2011/11/02/bayesian-inference-homo-bayesianis/}
 <p>
 
-https://pactiss.org/2011/11/02/bayesian-inference-homo-bayesianis/
+
 
 ### Key Elements:
 - **Prior Probability**: Your initial guess or belief.
