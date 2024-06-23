@@ -1,0 +1,139 @@
+#Load Data
+library(geoR)
+data(gambia)
+Y <- gambia[,3]
+X <- scale(gambia[,4:8])
+s <- gambia[,1:2]
+n <- length(Y)
+p <- ncol(X)
+# Compute the village ID
+S <- unique(s) # Lat/long of the villages
+m <- nrow(S)
+village <- rep(0,n)
+members <- rep(0,m)
+for(j in 1:m){
+  d <- (s[,1]-S[j,1])^2 + (s[,2]-S[j,2])^2
+  village[d==0] <- j
+  members[j] <- sum(d==0)
+}
+size <- ifelse(members<25,1,2)
+size <- ifelse(members>35,3,size)
+table(size)
+
+pch  <- c(1,4,19) 
+
+plot(gambia.borders, type="l", 
+     asp=1,axes=F,cex.main=1.5,
+     xlab="",ylab="",main="Village locations")
+points(S[,1],S[,2],pch=pch[size])
+legend("top",c("<25 children","25-35 children",">35 children"),pch=pch,cex=1.5,bty="n")
+
+
+##Prep for JAGS
+library(rjags)
+burn   <- 1000
+iters  <- 5000
+chains <- 2 
+
+
+##Model 1: No random effects##
+mod <- textConnection("model{
+     for(i in 1:n){
+       Y[i]          ~ dbern(pi[i])
+       logit(pi[i]) <- beta[1]        + X[i,1]*beta[2] + X[i,2]*beta[3] + 
+                       X[i,3]*beta[4] + X[i,4]*beta[5] + X[i,5]*beta[6]
+       like[i]      <- dbin(Y[i],pi[i],1) # For WAIC computation
+     }
+     for(j in 1:6){beta[j] ~ dnorm(0,0.01)}
+   }")
+
+data   <- list(Y=Y,X=X,n=n)
+model  <- jags.model(mod,data = data, n.chains=chains,quiet=TRUE)
+update(model, burn, progress.bar="none")
+samps  <- coda.samples(model, variable.names=c("like"), 
+                       n.iter=iters, n.thin = 5, progress.bar="none")
+
+# Compute DIC
+DIC    <- dic.samples(model,n.iter=iters,n.thin = 5, progress.bar="none")
+
+# Compute WAIC
+like   <- rbind(samps[[1]],samps[[2]]) # Combine samples from the two chains
+fbar   <- colMeans(like)
+Pw     <- sum(base::apply(log(like),2,var))
+WAIC   <- -2*sum(log(fbar))+2*Pw
+
+DIC
+WAIC;Pw
+
+###Model 2: Gaussian random effects ###
+
+mod <- textConnection("model{
+     for(i in 1:n){
+       Y[i]          ~ dbern(pi[i])
+       logit(pi[i]) <- beta[1]        + X[i,1]*beta[2] + X[i,2]*beta[3] + 
+                       X[i,3]*beta[4] + X[i,4]*beta[5] + X[i,5]*beta[6] + 
+                       theta[village[i]]
+       like[i]      <- dbin(Y[i],pi[i],1) # For WAIC computation
+     }
+     for(j in 1:6){beta[j] ~ dnorm(0,0.01)}
+     for(j in 1:65){theta[j] ~ dnorm(0,tau)}
+     tau   ~ dgamma(0.1,0.1)
+   }")
+
+data   <- list(Y=Y,X=X,n=n,village=village)
+model  <- jags.model(mod,data = data, n.chains=chains,quiet=TRUE)
+update(model, burn, progress.bar="none")
+samps  <- coda.samples(model, variable.names=c("like"), 
+                       n.iter=iters, n.thin = 5,progress.bar="none")
+
+# Compute DIC
+DIC    <- dic.samples(model,n.iter=iters,n.thin = 5,progress.bar="none")
+
+# Compute WAIC
+like   <- rbind(samps[[1]],samps[[2]])
+fbar   <- colMeans(like)
+Pw     <- sum(base::apply(log(like),2,var))
+WAIC   <- -2*sum(log(fbar))+2*Pw
+
+DIC
+WAIC;Pw
+
+
+###Model 3: Double-exponential random effects
+
+
+mod <- textConnection("model{
+     for(i in 1:n){
+       Y[i]          ~ dbern(pi[i])
+       logit(pi[i]) <- beta[1]        + X[i,1]*beta[2] + X[i,2]*beta[3] + 
+                       X[i,3]*beta[4] + X[i,4]*beta[5] + X[i,5]*beta[6] + 
+                       theta[village[i]]
+       like[i]      <- dbin(Y[i],pi[i],1) # For WAIC computation
+     }
+     for(j in 1:6){beta[j] ~ dnorm(0,0.01)}
+     for(j in 1:65){theta[j] ~ ddexp(0,tau)}
+     tau   ~ dgamma(0.1,0.1)
+   }")
+
+data   <- list(Y=Y,X=X,n=n,village=village)
+model  <- jags.model(mod,data = data, n.chains=chains,quiet=TRUE)
+update(model, burn, progress.bar="none")
+samps  <- coda.samples(model, variable.names=c("like"), 
+                       n.iter=iters, n.thin = 5,progress.bar="none")
+
+# Compute DIC
+DIC    <- dic.samples(model,n.iter=iters,n.thin = 5,progress.bar="none")
+
+# Compute WAIC
+like   <- rbind(samps[[1]],samps[[2]])
+fbar   <- colMeans(like)
+Pw     <- sum(base::apply(log(like),2,var))
+WAIC   <- -2*sum(log(fbar))+2*Pw
+
+DIC
+
+
+
+WAIC;Pw
+
+
