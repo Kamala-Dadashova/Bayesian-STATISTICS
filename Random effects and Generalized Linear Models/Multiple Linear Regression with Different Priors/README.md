@@ -1,1 +1,1 @@
-See Rmd or pdf file for a detailed information about the project. 
+See Rmd or pdf file for a detailed information. 
