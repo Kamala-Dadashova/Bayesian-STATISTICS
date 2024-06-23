@@ -14,7 +14,7 @@ where $X_{ji}$ s the $j^{th}$ covariate for county $i$. All variables are center
 \section{Load and standardize the election data}
 
 ```{r,echo=FALSE}
-load("/Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 6 Linear Models/election_2008_2016.RData")
+load("~/election_2008_2016.RData")
 library(rjags)
 ```
 ```{r}
