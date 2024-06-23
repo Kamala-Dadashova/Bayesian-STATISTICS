@@ -25,7 +25,7 @@ $$\mbox{logit}[\mbox{Prob}(Y_i=1)) = \alpha + \sum_{j=1}^pX_{ij}\beta_j.$$
 
 The spike-and-slab prior for $\beta_j=\gamma_j\delta_j$ where $\gamma_j\sim\mbox{Bernoulli}(0.5)$ and $\delta_j\sim\mbox{Normal}(0,\tau^2)$.
 
-\section{Load the data}
+\section{Load the data and necessary libraries}
 
 ```{r}
 library(geoR)
@@ -37,9 +37,12 @@ X[1:5,]
 ```
 
 ```{r,echo=TRUE,out.width="50%"}
-names <- c("Age","Netuse","Treated","Green","PCH")
-for(j in 1:5){
-  boxplot(X[,j]~Y,main=names[j])
+# Define the names of the variables
+variable_names <- c("Age", "Netuse", "Treated", "Green", "PCH")
+for (i in seq_along(variable_names)) {
+  boxplot(X[, i] ~ Y, main = variable_names[i],
+          xlab = "Y", ylab = variable_names[i], col = "lightblue",
+          varwidth = TRUE)
 }
 ```
 
@@ -47,18 +50,14 @@ for(j in 1:5){
 # Standardize X
 X <- scale(X)
 X[1:5,]
-```
-
-```{r}
 n <- length(Y)
 p <- ncol(X)
 ```
 
-\section{Define the models in JAGS}
+\section{Put the models in JAGS}
 
 ```{r}
 library(rjags)
-
 m <- textConnection("model{
  for(i in 1:n){
    Y[i]          ~ dbern(pi[i])
@@ -90,54 +89,67 @@ plot(samps)
 ```
 
 
-\section{Summarize the marginal distributions of the $\beta_j$}
+\section{Marginal distributions of the $\beta_j$}
 
 ```{r,echo=TRUE,out.width="50%"}
-beta    <- NULL
-for(l in 1:chains){
- beta <- rbind(beta,samps[[l]])
+# Define the variable names
+names <- c("Age", "Netuse", "Treated", "Green", "PCH")
+
+# Combine samples from all chains into a single matrix
+beta_combined <- do.call(rbind, samps)
+
+# Ensure beta_combined has correct dimensions
+if (ncol(beta_combined) != length(names)) {
+  stop("Number of columns in beta_combined does not match the length of names")
 }
-colnames(beta) <- names
 
-for(j in 1:5){
- hist(beta[,j],xlab=expression(beta[j]),ylab="Posterior density",
-      breaks=100,main=names[j])
+# Assign column names to beta_combined
+colnames(beta_combined) <- names
+
+# Plot histograms for each variable
+for (i in 1:5) {
+  hist(beta_combined[, i], xlab = bquote(beta[.(i)]), ylab = "Posterior density",
+       breaks = 100, main = names[i])
 }
-```
 
-
-```{r}
+# Load required library
 library(kableExtra)
-Inc_Prob <- apply(beta!=0,2,mean)
- Q        <- t(apply(beta,2,quantile,c(0.5,0.05,0.95)))
- out      <- cbind(Inc_Prob,Q)
 
- kbl(round(out,2))
+# Calculate inclusion probabilities
+Inc_Prob <- colMeans(beta_combined != 0)
+
+# Calculate quantiles
+Q <- t(apply(beta_combined, 2, quantile, probs = c(0.5, 0.05, 0.95)))
+
+# Combine the results into a single matrix
+out <- cbind(Inc_Prob, Q)
+
+# Create a formatted table
+kbl(round(out, 2)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# Construct model strings based on beta values
+models <- rep("Intercept", nrow(beta_combined))
+for (j in 1:5) {
+  models <- paste0(models, ifelse(beta_combined[, j] == 0, "", "+"), ifelse(beta_combined[, j] == 0, "", names[j]))
+}
+
+# Print first 5 models and corresponding beta values
+print(models[1:5])
+print(beta_combined[1:5, ])
+
+# Calculate and sort model probabilities
+model_probs <- table(models) / length(models)
+model_probs <- sort(model_probs, decreasing = TRUE)
+round(model_probs, 3)
 ```
+
+
+
 
 \textbf{Summary:} Age, bed-net use and greenness are included with posterior probability one and are thus clearly important predictors of malaria. Treatment of the bed net and proximity to a health center are included with posterior probability more than a half and so there is moderate evidence that these variables are important predictors of malaria prevalence. The posterior distribution of these parameters has an unusual shape: they are a combination of a Gaussian curve for samples that include the variable and a spike at zero for samples that exclude the variable.
 
-\section{Compute the posterior probability of each model}
 
-```{r}
-model <- "Intercept" 
- for(j in 1:5){
-   model <- paste(model,ifelse(beta[,j]==0,"","+"))
-   model <- paste(model,ifelse(beta[,j]==0,"",names[j]))
- }
- model[1:5]
-```
-
-```{r}
-beta[1:5,]
-```
-
-
-```{r}
-model_probs <- table(model)/length(model)
-model_probs <- sort(model_probs,dec=T)
-round(model_probs,3)
-```
 
 \textbf{Summary:} Three models dominate the posterior probability:
 
