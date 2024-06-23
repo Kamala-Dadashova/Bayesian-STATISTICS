@@ -2,7 +2,6 @@
 
 This repository contains various techniques for selecting and comparing statistical models, especially within a Bayesian framework.
 
-## Outline
 
 ### 1. Methods for Model Comparison
 - **Bayes Factors (BF):** Gold standard for hypothesis testing in Bayesian statistics.
@@ -14,7 +13,9 @@ This repository contains various techniques for selecting and comparing statisti
   - **Deviance Information Criteria (DIC):**
   - **Watanabe-Akaike Information Criteria (WAIC):**
 
+<p align="center">
 <img src="./model_diag.jpeg" alt="Bayesian-STATISTICS" width="500"/>
+</p>
 
 ### 2. Posterior Predictive Checks
 - Evaluates model fit by comparing observed data to data simulated from the model.
