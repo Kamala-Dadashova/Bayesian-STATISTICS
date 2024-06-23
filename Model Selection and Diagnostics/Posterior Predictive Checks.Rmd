@@ -38,7 +38,7 @@ $$D_6(Y) = \mbox{max}(Y_1/N_1,…,Y_n/N_n)-\mbox{min}(Y_1/N_1,…,Y_n/N_n)$$
 \section{1. Load the data and libraries}
 
 ```{r,echo=FALSE}
-load("//Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 7 Model Comparisions/guns.RData")
+load("/guns.RData")
 ```
 
 ```{r}
