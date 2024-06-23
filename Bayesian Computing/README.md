@@ -1,5 +1,5 @@
 # Bayesian Computation
-Bayesian computation involves various methods to perform inference on the posterior distribution of model parameters given data. Below are some key methods and concepts used in Bayesian computation:
+Bayesian computation involves various methods to perform inference on the posterior distribution of model parameters given data. Below are some key methods and concepts used in Bayesian computation (see Rmd file for detailed information):
 
 
 <p align="center">
