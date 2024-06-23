@@ -34,7 +34,7 @@ $S = (M-\rho A)^{-1}$ where $A$ is the adjacency matrix with $(i,j)$ element is 
 
 ```{r,echo=FALSE}
 set.seed(0820)
-load("/Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 6 Linear Models/guns.RData")
+load("~/guns.RData")
 ```
 
 ```{r}
