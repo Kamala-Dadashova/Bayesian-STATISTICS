@@ -2,7 +2,7 @@
 library(choroplethr)
 library(choroplethrMaps) # Required for county_choropleth
 # Load the dataset
-load("/Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 7 Model Comparisions/election_2008_2016.RData")
+load("/election_2008_2016.RData")
 # Standardize the covariates and add an intercept
 X = scale(X)
 X = cbind(Intercept = 1, X)
