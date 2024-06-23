@@ -1,0 +1,199 @@
+---
+title:
+output: pdf_document
+---
+
+\section{Spatial modeling of gun-related homicide rates}
+
+\subsection{Linear models with correlated data}
+
+The data for this analysis come from “Firearm legislation and firearm mortality in the USA: a cross-sectional, state-level study” by Kalesan et. al. (2016). The response variable, $Y_i$, is the log firearm-related death rate (i.e., the log of the number of deaths divided by the population) in 2010 in state $i$. This is regressed onto five potential confounders,
+
+1.log 2009 firearm death rate per 10,000 people
+2. Firearm ownership rate quartile
+3. Unemployment rate quartile
+4. Non-firearm homicide rate quartile
+5. Firearm export rate quartile
+
+The covariate of interest is the number of gun control laws in effect in the state. This gives $p=6$ covariates.
+
+We fit the linear model
+
+$$Y_i=\beta_0+\sum_{j=1}^pX_i\beta_j + \varepsilon_i.$$
+
+
+
+\textbf{Objective:} Compare the usual non-spatial model with $\varepsilon_i\sim\mbox{Normal}(0,\sigma^2)$  with the spaital model $\mbox{Cov}(\varepsilon_1,…,\varepsilon_n)\sim\mbox{Normal}(0,\Sigma)$. The covariance
+
+$$\Sigma=\tau^2S+ \sigma^2I_n$$
+
+is decomposed into a spatial covariance $\tau^2 S$ and a non-spatial covariance $\sigma^2 I_n$. The spatial covariance follows the conditionally-autoregressive model 
+$S = (M-\rho A)^{-1}$ where $A$ is the adjacency matrix with $(i,j)$ element is equal to 1 if states $i$ and $j$ are neighbors and zero otherwise, and $M$is the diagonal matrix with $i^{th}$ diagonal element equal to the number of states that neighbor state $i$.
+
+\section{Load the data}
+
+```{r,echo=FALSE}
+set.seed(0820)
+load("/Users/kamaladadashova/Documents/DoctoralCourses/Applied Bayesian Statistics/Lecture Notes with Assignments/Week 6 Linear Models/guns.RData")
+```
+
+```{r}
+ Y     = log(10000*Y/N)
+ Z[,1] = log(Z[,1])
+ X     = cbind(1,Z,rowSums(X))
+ # Remove AK and HI
+ Y = Y[-c(2,11)]
+ X = X[-c(2,11),]
+ n = length(Y)
+ p = ncol(X)
+```
+
+
+\section{Fit the non-spatial model}
+
+```{r}
+library(rjags)
+library(ggplot2)
+ns_model = "model{
+   # Likelihood
+   for(i in 1:n){
+      Y[i]   ~ dnorm(mu[i],taue)
+      mu[i] <- inprod(X[i,],beta[])
+   }
+   # Priors
+   for(j in 1:p){beta[j] ~ dnorm(0,0.01)}
+   taue ~ dgamma(0.1,0.1)
+   sig <- 1/sqrt(taue)
+
+ }"
+
+ dat    = list(Y=Y,n=n,X=X,p=p)
+ init   = list(beta=rep(0,p))
+ model1 = jags.model(textConnection(ns_model),
+                      inits=init,data = dat,quiet=TRUE)
+ update(model1, 10000, progress.bar="none")
+ samp1   = coda.samples(model1, 
+            variable.names=c("beta","sig"), 
+            n.iter=20000, progress.bar="none")
+ summary(samp1)
+```
+
+
+\section{Create an adjacency matrix for the states in the US}
+
+```{r}
+ library(maps)
+library(sf)
+library(spdep)
+library(rmapshaper)
+
+# Create the USA state map
+usa.state = map(database = "state", fill = TRUE, plot = FALSE)
+
+# Convert to an sf object
+usa.sf = st_as_sf(map("state", plot = FALSE, fill = TRUE))
+
+# Clean the geometries to fix any issues
+usa.sf = st_make_valid(usa.sf)
+
+# If there are still issues, simplify the geometries
+usa.sf = ms_simplify(usa.sf, keep_shapes = TRUE)
+
+# Create neighborhood structure
+usa.nb = poly2nb(usa.sf)
+
+# Convert to adjacency matrix
+A = nb2mat(usa.nb, style = "B")
+
+# Remove DC (8th row/column)
+A = A[-8, ]
+A = A[, -8]
+
+# Create the diagonal matrix
+M = diag(rowSums(A))
+```
+
+\section{Fit the spatial model}
+
+```{r}
+sp_model = "model{
+
+   # Likelihood
+   for(i in 1:n){
+      Y[i]  ~ dnorm(mu[i]+S[i],taue)
+   }
+   S[1:n] ~ dmnorm(zero[1:n],taus*Omega[1:n,1:n])
+   for(i in 1:n){
+      mu[i]   <- inprod(X[i,],beta[])
+      zero[i] <- 0
+   }
+   Omega[1:n,1:n]<-M[1:n,1:n]-rho*A[1:n,1:n]
+
+   # Priors
+   for(j in 1:p){beta[j] ~ dnorm(0,0.01)}
+   taue ~ dgamma(0.1,0.1)
+   taus ~ dgamma(0.1,0.1)
+   rho  ~ dunif(0,1)
+   sig[1] <- 1/sqrt(taue)
+   sig[2] <- 1/sqrt(taus)
+  }"
+
+  dat    = list(Y=Y,n=n,X=X,A=A,M=M,p=p)
+  init   = list(rho=0.99,beta=lm(Y~X-1)$coef)
+  model2 = jags.model(textConnection(sp_model),
+                       inits=init,data = dat,quiet=TRUE)
+  update(model2, 10000, progress.bar="none")
+  samp2  = coda.samples(model2, 
+            variable.names=c("beta","rho","sig"), 
+            n.iter=20000, progress.bar="none")
+
+  summary(samp2)
+```
+
+```{r}
+  rho = samp2[[1]][,8]
+  hist(rho,breaks=100)
+```
+
+Conclusion: The spatial dependence parameter is close to one, which implies a strong spatial dependence.
+
+\section{Compare the results across models}
+
+The objective is to determine if the coefficient corresponding to the number of gun laws $\beta_7$ s non-zero. So, we compare its posterior distribution for the spatial and non-spatial models.
+
+```{r}
+b1  = samp1[[1]][,7]
+b2  = samp2[[1]][,7]
+r   = c(-0.035,0.015)
+# Combine data into a data frame for ggplot2
+data <- data.frame(
+  Beta = c(b1, b2),
+  Group = factor(rep(c("Non-spatial", "Spatial"), c(length(b1), length(b2))))
+)
+ggplot(data, aes(x = Beta, color = Group, linetype = Group)) +
+  geom_density(adjust = 1.5) +
+  xlim(r) +
+  labs(x = "Beta", y = "Posterior density") +
+  theme_minimal() +
+  theme(legend.position = "topright")
+```
+
+
+```{r}
+ mean(b1<0)
+ mean(b2<0)
+```
+
+Based on the analysis comparing non-spatial and spatial models for predicting gun-related homicide rates, we can draw several conclusions:
+
+\begin{enumerate}
+    \item \textbf{Negative Relationship}: Both the non-spatial and spatial models indicate a negative relationship between the number of gun laws and firearm-related death rates. This suggests that as the number of gun control laws increases, the rate of firearm-related deaths decreases.
+    
+    \item \textbf{Posterior Distributions}: The posterior distributions for the coefficient corresponding to the number of gun laws ($\beta_7$) are shown for both models. The density plots reveal that the distribution for the spatial model is slightly more spread out, indicating higher uncertainty compared to the non-spatial model.
+    
+    \item \textbf{Spatial Dependence}: The spatial dependence parameter ($\rho$) was estimated to be near one, indicating strong spatial dependence among the states. This means that the firearm-related death rates are not independent across states but are influenced by neighboring states' rates.
+    
+    \item \textbf{Model Comparison}: While both models suggest a negative effect of gun laws on firearm-related deaths, the spatial model, which accounts for correlations between neighboring states, provides a more realistic representation by incorporating spatial dependence. The increased uncertainty in the spatial model is expected due to this additional complexity.
+    
+    \item \textbf{Policy Implications}: The findings support the effectiveness of gun control laws in reducing firearm-related deaths. However, policymakers should consider the spatial dependence highlighted by the spatial model, as it suggests that the impact of gun laws in one state can influence neighboring states.
+\end{enumerate}
